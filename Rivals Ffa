@@ -1,0 +1,143 @@
+-- Simple Rayfield Loader with Error Handling
+local success, Rayfield = pcall(function()
+    return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not success then
+    warn("Failed to load Rayfield. Trying backup URL...")
+    -- Try backup URL
+    success, Rayfield = pcall(function()
+        return loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+    end)
+end
+
+if not success then
+    game:GetService("Players").LocalPlayer:Kick("Failed to load UI Library")
+    return
+end
+
+-- Create Window
+local Window = Rayfield:CreateWindow({
+    Name = "Astral Configs",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "by lunar3301",
+    Theme = "Default",
+    ToggleUIKeybind = "K",
+})
+
+local Tab = Window:CreateTab("Main", nil)
+
+-- ANTI-MOD
+Tab:CreateButton({
+    Name = "Anti-Mod",
+    Callback = function()
+        local ids = {
+            3010656315, 4226506845, 7978467591, 158374605, 31598456, 
+            180434077, 478848349, 164100188, 163180763, 549095619, 
+            224264658, 99268362, 131577796, 3161872154, 1602256048, 
+            1302259915, 219021541, 39560492, 475975042, 877654864, 
+            754154414, 1399517213, 113947873, 133321104
+        }
+        
+        local Players = game:GetService("Players")
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            for _, id in pairs(ids) do
+                if player.UserId == id then
+                    game.Players.LocalPlayer:Kick("Mod found: " .. player.Name)
+                    return
+                end
+            end
+        end
+        
+        Players.PlayerAdded:Connect(function(newPlayer)
+            for _, id in pairs(ids) do
+                if newPlayer.UserId == id then
+                    game.Players.LocalPlayer:Kick("Mod joined: " .. newPlayer.Name)
+                    break
+                end
+            end
+        end)
+        
+        Rayfield:Notify({
+            Title = "Anti-Mod Enabled",
+            Content = "Will disconnect if mods join",
+            Duration = 3,
+        })
+    end,
+})
+
+-- ANTI-AFK (Built-in)
+Tab:CreateButton({
+    Name = "Anti-AFK",
+    Callback = function()
+        local VirtualUser = game:GetService("VirtualUser")
+        
+        -- Connect to Idled event
+        game:GetService("Players").LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+        
+        -- Periodic activity
+        spawn(function()
+            while wait(30) do
+                pcall(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end)
+            end
+        end)
+        
+        Rayfield:Notify({
+            Title = "Anti-AFK Enabled",
+            Content = "You won't be kicked for AFK",
+            Duration = 3,
+        })
+    end,
+})
+
+-- AUTO AMMO
+Tab:CreateButton({
+    Name = "Auto Ammo",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/lunarscripts686-ux/Rivals/refs/heads/main/Rivals%20auto"))()
+        end)
+        
+        if success then
+            Rayfield:Notify({
+                Title = "Auto Ammo Loaded",
+                Content = "Script executed successfully",
+                Duration = 3,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Failed to load: " .. tostring(err),
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+-- TEST
+Tab:CreateButton({
+    Name = "Test",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Working!",
+            Content = "UI is functioning properly",
+            Duration = 3,
+        })
+    end,
+})
+
+-- Notification that UI loaded
+Rayfield:Notify({
+    Title = "Astral Configs Loaded",
+    Content = "Press K to toggle menu",
+    Duration = 5,
+})
+
+print("Astral Configs UI Loaded Successfully")
