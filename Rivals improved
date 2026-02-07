@@ -1,581 +1,79 @@
--- ASTRAL CONFIGS PREMIUM - V2.0
--- Made by: Dataoffset
--- Compatible with All Executors
--- Mobile Optimized Edition
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Camera = workspace.CurrentCamera
-
-local LocalPlayer = Players.LocalPlayer
-local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-
--- Update character reference on respawn
-LocalPlayer.CharacterAdded:Connect(function(char)
-    character = char
-    hrp = char:WaitForChild("HumanoidRootPart")
-end)
-
---------------------------------------------------
--- SAVED SETTINGS
---------------------------------------------------
-local Settings = {
-    UIColor = Color3.fromRGB(138, 43, 226), -- Default Purple
-    UITransparency = 0.1,
-    UIScale = 1,
-    AnimationSpeed = 0.3,
-    GlowEnabled = true,
-    RainbowMode = false,
-    AutoExecute = false,
-    AutoSave = false,
-}
-
---------------------------------------------------
--- FEATURE STATES
---------------------------------------------------
-local FeatureStates = {
-    OrbitAura = false,
-    AutoCollect = false,
-    AutoRespawn = false,
-    FPSBoost = false,
-    AntiMod = false,
-    AntiAFK = false,
-    SpectateDetector = false,
-    AutoBeggarWrap = false,
-}
-
---------------------------------------------------
--- NOTIFICATION SYSTEM
---------------------------------------------------
-local ScreenGui = nil
-
-local function createNotification(text, duration, color)
-    duration = duration or 3
-    color = color or Settings.UIColor
-    
-    if not ScreenGui then
-        task.wait(0.1)
-        if not ScreenGui then return end
-    end
-    
-    local NotifFrame = Instance.new("Frame")
-    NotifFrame.Size = UDim2.new(0, 320, 0, 70)
-    NotifFrame.Position = UDim2.new(1, 10, 1, -80)
-    NotifFrame.BackgroundColor3 = color
-    NotifFrame.BorderSizePixel = 0
-    NotifFrame.ZIndex = 1000
-    NotifFrame.Parent = ScreenGui
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = NotifFrame
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Thickness = 2
-    stroke.Transparency = 0.5
-    stroke.Parent = NotifFrame
-    
-    local NotifText = Instance.new("TextLabel")
-    NotifText.Size = UDim2.new(1, -20, 1, 0)
-    NotifText.Position = UDim2.new(0, 10, 0, 0)
-    NotifText.BackgroundTransparency = 1
-    NotifText.Text = text
-    NotifText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    NotifText.Font = Enum.Font.GothamBold
-    NotifText.TextSize = 14
-    NotifText.TextWrapped = true
-    NotifText.TextYAlignment = Enum.TextYAlignment.Center
-    NotifText.Parent = NotifFrame
-    
-    -- Slide in animation
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(NotifFrame, tweenInfo, {Position = UDim2.new(1, -330, 1, -80)})
-    tween:Play()
-    
-    -- Wait and slide out
-    task.wait(duration)
-    local tweenOut = TweenService:Create(NotifFrame, TweenInfo.new(0.3), {Position = UDim2.new(1, 10, 1, -80)})
-    tweenOut:Play()
-    tweenOut.Completed:Wait()
-    NotifFrame:Destroy()
-end
-
---------------------------------------------------
--- AUTO SAVE/LOAD FUNCTIONS
---------------------------------------------------
-local function saveSettings()
-    if not Settings.AutoSave then return end
-    
-    local saveData = {
-        Settings = Settings,
-        FeatureStates = FeatureStates
-    }
-    
-    -- Use writefile if available
-    if writefile and readfile then
-        pcall(function()
-            writefile("AstralPremiumConfig.json", HttpService:JSONEncode(saveData))
-        end)
-    end
-end
-
-local function loadSettings()
-    if not Settings.AutoSave then return end
-    
-    if readfile then
-        pcall(function()
-            local data = HttpService:JSONDecode(readfile("AstralPremiumConfig.json"))
-            if data then
-                -- Load settings
-                for key, value in pairs(data.Settings) do
-                    Settings[key] = value
-                end
-                -- Load feature states
-                for key, value in pairs(data.FeatureStates) do
-                    FeatureStates[key] = value
-                end
-            end
-        end)
-    end
-end
-
---------------------------------------------------
--- ORBIT AURA VARIABLES (ORIGINAL UNKILLABLE VERSION)
---------------------------------------------------
-local VOID_POS = Vector3.new(0, -500, 0)  -- Far below the map for safety
-local HEIGHT_OFFSET = 5
-local ORBIT_RADIUS = 10
-local ORBIT_SPEED = 2
+_G.AstralOrbitEnabled = _G.AstralOrbitEnabled or false
 local orbitConnection = nil
-local orbitAngle = 0
 
---------------------------------------------------
--- MISC VARIABLES
---------------------------------------------------
-local antiModConnection = nil
-local antiModCheckConnection = nil
-local antiAFKConnection = nil
-local antiAFKMoveConnection = nil
-local spectateConnection = nil
-local beggarConnection = nil
-local modIds = {
-    3010656315, 4226506845, 7978467591, 158374605, 31598456, 
-    180434077, 478848349, 164100188, 163180763, 549095619, 
-    224264658, 99268362, 131577796, 3161872154, 1602256048, 
-    1302259915, 219021541, 39560492, 475975042, 877654864, 
-    754154414, 1399517213, 113947873, 133321104
-}
-
---------------------------------------------------
--- UTILITY FUNCTIONS
---------------------------------------------------
-local function createTween(instance, properties, duration)
-    local tweenInfo = TweenInfo.new(duration or Settings.AnimationSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(instance, tweenInfo, properties)
-    tween:Play()
-    return tween
-end
-
-local function addCorner(parent, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, radius or 8)
-    corner.Parent = parent
-    return corner
-end
-
-local function addStroke(parent, color, thickness)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color or Settings.UIColor
-    stroke.Thickness = thickness or 2
-    stroke.Parent = parent
-    return stroke
-end
-
-local function addGradient(parent, color1, color2)
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, color1),
-        ColorSequenceKeypoint.new(1, color2)
-    }
-    gradient.Rotation = 90
-    gradient.Parent = parent
-    return gradient
-end
-
---------------------------------------------------
--- ORBIT AURA FUNCTIONS (ORIGINAL UNKILLABLE CODE)
---------------------------------------------------
-local function getClosestEnemy()
-    local closest = nil
-    local shortestDist = math.huge
+if not _G.AstralOrbitEnabled then
+    _G.AstralOrbitEnabled = true
     
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character then
-            local enemyHrp = v.Character:FindFirstChild("HumanoidRootPart")
-            local enemyHum = v.Character:FindFirstChild("Humanoid")
-            
-            if enemyHrp and enemyHum and enemyHum.Health > 0 then
-                local dist = (hrp.Position - enemyHrp.Position).Magnitude
-                if dist < shortestDist then
-                    shortestDist = dist
-                    closest = v.Character
-                end
-            end
-        end
-    end
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Smooth Orbit",
+        Text = "✅ Focus enabled",
+        Duration = 3
+    })
     
-    return closest
-end
-
-local function teleportToVoid()
-    if hrp then
-        hrp.CFrame = CFrame.new(VOID_POS)
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    end
-end
-
-local function setCameraVoid(enemy)
-    if not enemy then return end
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
     
-    local ehrp = enemy:FindFirstChild("HumanoidRootPart")
-    if not ehrp then return end
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = character:WaitForChild("HumanoidRootPart")
     
-    -- Create orbit effect
-    orbitAngle = orbitAngle + ORBIT_SPEED
-    local x = math.cos(math.rad(orbitAngle)) * ORBIT_RADIUS
-    local z = math.sin(math.rad(orbitAngle)) * ORBIT_RADIUS
-    local behind = Vector3.new(x, 0, z)
+    LocalPlayer.CharacterAdded:Connect(function(newChar)
+        character = newChar
+        hrp = newChar:WaitForChild("HumanoidRootPart")
+    end)
     
-    local targetPos = ehrp.Position + behind + Vector3.new(0, HEIGHT_OFFSET, 0)
-    Camera.CFrame = CFrame.new(VOID_POS, targetPos)
-end
-
-local function toggleOrbitAura(enabled)
-    FeatureStates.OrbitAura = enabled
+    local ORBIT_RADIUS = 8
+    local ORBIT_HEIGHT = 4
+    local ORBIT_SPEED = 0.5
+    local orbitAngle = 0
     
-    if enabled then
-        createNotification("Orbit Aura Enabled! Unkillable mode activated", 3, Color3.fromRGB(0, 255, 127))
-        orbitConnection = RunService.Stepped:Connect(function()
-            if character and hrp then
-                teleportToVoid()
-                local enemy = getClosestEnemy()
-                if enemy and enemy:FindFirstChild("HumanoidRootPart") then
-                    setCameraVoid(enemy)
-                end
-            end
-        end)
-    else
-        createNotification("Orbit Aura Disabled", 2, Color3.fromRGB(255, 100, 100))
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if character and hrp then
-            hrp.CFrame = CFrame.new(0, 5, 0)
-            Camera.CameraSubject = character:FindFirstChild("Humanoid")
-        end
-    end
-    saveSettings()
-end
-
---------------------------------------------------
--- AUTO COLLECT FUNCTIONS
---------------------------------------------------
-local collectConnection = nil
-
-local function toggleAutoCollect(enabled)
-    FeatureStates.AutoCollect = enabled
-    
-    if enabled then
-        createNotification("Auto Collect Enabled! Collecting health & ammo", 3, Color3.fromRGB(0, 255, 127))
-        collectConnection = RunService.RenderStepped:Connect(function()
-            if not character then return end
-            local currentHrp = character:FindFirstChild("HumanoidRootPart")
-            if not currentHrp then return end
-            local humanoid = character:FindFirstChild("Humanoid")
-            local needsHealth = humanoid and humanoid.Health < humanoid.MaxHealth
-            
-            for _, obj in pairs(workspace:GetChildren()) do
-                if obj.Name == "_drop" and obj:IsA("BasePart") then
-                    if (obj:FindFirstChild("Health") and needsHealth) or obj:FindFirstChild("Ammo") then
-                        firetouchinterest(currentHrp, obj, 0)
-                        firetouchinterest(currentHrp, obj, 1)
+    local function getClosestEnemy()
+        local closest = nil
+        local shortestDist = math.huge
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local enemyHrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                
+                if enemyHrp and humanoid and humanoid.Health > 0 then
+                    local dist = (hrp.Position - enemyHrp.Position).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closest = enemyHrp
                     end
                 end
             end
-        end)
-    else
-        createNotification("Auto Collect Disabled", 2, Color3.fromRGB(255, 100, 100))
-        if collectConnection then
-            collectConnection:Disconnect()
-            collectConnection = nil
         end
+        
+        return closest
     end
-    saveSettings()
-end
-
---------------------------------------------------
--- AUTO RESPAWN FUNCTIONS
---------------------------------------------------
-local respawnConnection = nil
-
-local function setupRespawn(char)
-    if not FeatureStates.AutoRespawn then return end
     
-    local humanoid = char:WaitForChild("Humanoid")
-    humanoid.Died:Connect(function()
-        if not FeatureStates.AutoRespawn then return end
-        task.wait()
-        pcall(function()
-            local respawnRemote = ReplicatedStorage:FindFirstChild("Remotes")
-            if respawnRemote then
-                respawnRemote = respawnRemote:FindFirstChild("Duels")
-                if respawnRemote then
-                    respawnRemote = respawnRemote:FindFirstChild("RespawnNow")
-                    if respawnRemote then
-                        respawnRemote:FireServer()
-                    end
-                end
-            end
-        end)
-    end)
-end
-
-local function toggleAutoRespawn(enabled)
-    FeatureStates.AutoRespawn = enabled
-    
-    if enabled then
-        createNotification("Auto Respawn Enabled! Instant respawn on death", 3, Color3.fromRGB(0, 255, 127))
-        setupRespawn(character)
-    else
-        createNotification("Auto Respawn Disabled", 2, Color3.fromRGB(255, 100, 100))
-    end
-    saveSettings()
-end
-
---------------------------------------------------
--- FPS BOOST FUNCTIONS
---------------------------------------------------
-local function toggleFPSBoost(enabled)
-    FeatureStates.FPSBoost = enabled
-    
-    if enabled then
-        createNotification("FPS Boost Enabled! Optimizing performance", 3, Color3.fromRGB(0, 255, 127))
-        local Terrain = workspace:FindFirstChildOfClass('Terrain')
-        if Terrain then
-            Terrain.WaterWaveSize = 0
-            Terrain.WaterWaveSpeed = 0
-            Terrain.WaterReflectance = 0
-            Terrain.WaterTransparency = 0
-        end
+    orbitConnection = RunService.RenderStepped:Connect(function(dt)
+        if not _G.AstralOrbitEnabled then return end
         
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        
-        for _, v in pairs(Lighting:GetDescendants()) do
-            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
-                v.Enabled = false
-            end
-        end
-        
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("Part") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
-                v.Material = Enum.Material.Plastic
-                v.Reflectance = 0
-            elseif v:IsA("Decal") or v:IsA("Texture") then
-                v.Transparency = 1
-            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                v.Enabled = false
-            end
-        end
-        
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    else
-        createNotification("FPS Boost Disabled", 2, Color3.fromRGB(255, 100, 100))
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-        Lighting.GlobalShadows = true
-    end
-    saveSettings()
-end
-
---------------------------------------------------
--- IMPROVED ANTI-MOD FUNCTIONS
---------------------------------------------------
-local function serverHop()
-    createNotification("Moderator Detected! Server hopping now...", 2, Color3.fromRGB(255, 50, 50))
-    
-    local PlaceId = game.PlaceId
-    local servers = {}
-    
-    pcall(function()
-        local req = game:HttpGet(string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", PlaceId))
-        local body = HttpService:JSONDecode(req)
-        
-        if body and body.data then
-            for i, v in pairs(body.data) do
-                if type(v) == "table" and v.id ~= game.JobId and v.playing < v.maxPlayers then
-                    table.insert(servers, v.id)
-                end
-            end
+        local enemyHrp = getClosestEnemy()
+        if enemyHrp then
+            orbitAngle = orbitAngle + (ORBIT_SPEED * dt)
+            local x = math.cos(orbitAngle) * ORBIT_RADIUS
+            local z = math.sin(orbitAngle) * ORBIT_RADIUS
+            local orbitPos = enemyHrp.Position + Vector3.new(x, ORBIT_HEIGHT, z)
+            Camera.CFrame = CFrame.new(orbitPos, enemyHrp.Position)
         end
     end)
     
-    if #servers > 0 then
-        TeleportService:TeleportToPlaceInstance(PlaceId, servers[math.random(1, #servers)])
-    else
-        TeleportService:Teleport(PlaceId)
-    end
-end
-
-local function checkForMods()
-    for _, player in pairs(Players:GetPlayers()) do
-        for _, modId in pairs(modIds) do
-            if player.UserId == modId then
-                return true, player.Name
-            end
-        end
-    end
-    return false, nil
-end
-
-local function toggleAntiMod(enabled)
-    FeatureStates.AntiMod = enabled
+else
+    _G.AstralOrbitEnabled = false
     
-    if enabled then
-        createNotification("Anti-Mod Enabled! Monitoring for moderators", 3, Color3.fromRGB(0, 255, 127))
-        
-        -- Check existing players first
-        local hasMod, modName = checkForMods()
-        if hasMod then
-            createNotification("Moderator Found: " .. modName .. "! Hopping servers...", 3, Color3.fromRGB(255, 50, 50))
-            task.wait(0.5)
-            serverHop()
-            return
-        end
-        
-        -- Monitor for new players joining
-        antiModConnection = Players.PlayerAdded:Connect(function(player)
-            if not FeatureStates.AntiMod then return end
-            
-            for _, modId in pairs(modIds) do
-                if player.UserId == modId then
-                    createNotification("Moderator Joined: " .. player.Name .. "! Hopping servers...", 3, Color3.fromRGB(255, 50, 50))
-                    task.wait(0.5)
-                    serverHop()
-                    break
-                end
-            end
-        end)
-        
-        -- Periodic check every 30 seconds
-        antiModCheckConnection = task.spawn(function()
-            while FeatureStates.AntiMod do
-                local hasMod, modName = checkForMods()
-                if hasMod then
-                    createNotification("Moderator Detected: " .. modName .. "! Hopping servers...", 3, Color3.fromRGB(255, 50, 50))
-                    task.wait(0.5)
-                    serverHop()
-                    break
-                end
-                task.wait(30)
-            end
-        end)
-    else
-        createNotification("Anti-Mod Disabled", 2, Color3.fromRGB(255, 100, 100))
-        if antiModConnection then
-            antiModConnection:Disconnect()
-            antiModConnection = nil
-        end
-        if antiModCheckConnection then
-            task.cancel(antiModCheckConnection)
-            antiModCheckConnection = nil
-        end
+    if orbitConnection then
+        orbitConnection:Disconnect()
+        orbitConnection = nil
     end
-    saveSettings()
-end
-
---------------------------------------------------
--- IMPROVED ANTI-AFK FUNCTIONS
---------------------------------------------------
-local lastMoveTime = tick()
-
-local function toggleAntiAFK(enabled)
-    FeatureStates.AntiAFK = enabled
     
-    if enabled then
-        createNotification("Anti-AFK Enabled! Preventing AFK kick", 3, Color3.fromRGB(0, 255, 127))
-        
-        -- Method 1: VirtualUser idled connection
-        local vu = game:GetService("VirtualUser")
-        antiAFKConnection = LocalPlayer.Idled:Connect(function()
-            vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        end)
-        
-        -- Method 2: Periodic small movements
-        antiAFKMoveConnection = task.spawn(function()
-            while FeatureStates.AntiAFK do
-                task.wait(120) -- Every 2 minutes
-                
-                if character and hrp then
-                    local currentPos = hrp.CFrame
-                    -- Small random movement
-                    local randomOffset = Vector3.new(
-                        math.random(-2, 2),
-                        0,
-                        math.random(-2, 2)
-                    )
-                    hrp.CFrame = currentPos + randomOffset
-                    task.wait(0.1)
-                    hrp.CFrame = currentPos -- Move back
-                end
-                
-                -- Also simulate input
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-            end
-        end)
-    else
-        createNotification("Anti-AFK Disabled", 2, Color3.fromRGB(255, 100, 100))
-        if antiAFKConnection then
-            antiAFKConnection:Disconnect()
-            antiAFKConnection = nil
-        end
-        if antiAFKMoveConnection then
-            task.cancel(antiAFKMoveConnection)
-            antiAFKMoveConnection = nil
-        end
-    end
-    saveSettings()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Smooth Orbit", 
+        Text = "❌ Focus disabled",
+        Duration = 2
+    })
 end
-
---------------------------------------------------
--- SPECTATE DETECTOR FUNCTIONS
---------------------------------------------------
-local function createSpectateNotification(spectatorName)
-    createNotification(spectatorName .. " is spectating you!", 5, Color3.fromRGB(255, 50, 50))
-end
-
-local spectators = {}
-
-local function toggleSpectateDetector(enabled)
-    FeatureStates.SpectateDetector = enabled
-    
-    if enabled then
-        createNotification("Spectate Detector Enabled! Monitoring spectators", 3, Color3.fromRGB(0, 255, 127))
-        
-        spectateConnection = RunService.RenderStepped:Connect(function()
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local camera = player:FindFirstChildOfClass("PlayerGui")
-                    if camera and camera:FindFirstChild("Cam
